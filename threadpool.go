@@ -23,7 +23,7 @@ type CbFuncInfo struct {
 	job      *JobInfo
 }
 
-type ThreadPool struct {
+type Pool struct {
 	jobs     map[uint64]*JobInfo
 	jobsMtx  *sync.RWMutex
 	jobCount uint64
@@ -32,8 +32,8 @@ type ThreadPool struct {
 	poolSize   int
 }
 
-func New(poolSize int) *ThreadPool {
-	return &ThreadPool{
+func New(poolSize int) *Pool {
+	return &Pool{
 		jobs:       make(map[uint64]*JobInfo),
 		jobsMtx:    &sync.RWMutex{},
 		dispatchCh: make(chan *CbFuncInfo, poolSize),
@@ -41,22 +41,22 @@ func New(poolSize int) *ThreadPool {
 	}
 }
 
-func (t *ThreadPool) Init() {
-	for i := 0; i < t.poolSize; i++ {
-		go t.execute()
+func (p *Pool) Init() {
+	for i := 0; i < p.poolSize; i++ {
+		go p.execute()
 	}
 }
 
-func (t *ThreadPool) execute() {
+func (p *Pool) execute() {
 	defer func() {
 		if err := recover(); err != nil {
-			t.execute()
+			p.execute()
 		}
 	}()
 
 	for {
 		select {
-		case info := <-t.dispatchCh:
+		case info := <-p.dispatchCh:
 			func() {
 				// needed to call callback function in new scope
 				// as the cbFunc can panic as well
@@ -75,57 +75,57 @@ func (t *ThreadPool) execute() {
 	}
 }
 
-func (t *ThreadPool) NewJob() *JobInfo {
-	atomic.AddUint64(&t.jobCount, 1)
+func (p *Pool) NewJob() *JobInfo {
+	atomic.AddUint64(&p.jobCount, 1)
 
 	job := &JobInfo{
-		id:     atomic.LoadUint64(&t.jobCount),
+		id:     atomic.LoadUint64(&p.jobCount),
 		wg:     &sync.WaitGroup{},
 		err:    nil,
 		errMtx: &sync.RWMutex{},
 	}
 
-	t.jobsMtx.Lock()
-	defer t.jobsMtx.Unlock()
-	t.jobs[job.id] = job
+	p.jobsMtx.Lock()
+	defer p.jobsMtx.Unlock()
+	p.jobs[job.id] = job
 
 	return job
 }
 
-func (t *ThreadPool) Add(j *JobInfo, fn CallbackFunc, params ...interface{}) {
+func (p *Pool) Add(j *JobInfo, fn CallbackFunc, params ...interface{}) {
 	j.wg.Add(1)
 	atomic.AddUint64(&j.callCount, 1)
 
-	t.dispatchCh <- &CbFuncInfo{
+	p.dispatchCh <- &CbFuncInfo{
 		cbFunc:   fn,
 		fnParams: params,
 		job:      j,
 	}
 }
 
-func (t *ThreadPool) Wait(j *JobInfo) error {
+func (p *Pool) Wait(j *JobInfo) error {
 	j.wg.Wait()
 
-	t.jobsMtx.Lock()
-	defer t.jobsMtx.Unlock()
-	delete(t.jobs, j.id)
+	p.jobsMtx.Lock()
+	defer p.jobsMtx.Unlock()
+	delete(p.jobs, j.id)
 
 	return j.err
 }
 
-func (t *ThreadPool) Stats() map[string]uint64 {
+func (p *Pool) Stats() map[string]uint64 {
 	stats := make(map[string]uint64)
 
-	stats["thread-pool-size"] = uint64(t.poolSize)
-	stats["total-job-executed"] = atomic.LoadUint64(&t.jobCount)
+	stats["thread-pool-size"] = uint64(p.poolSize)
+	stats["total-job-executed"] = atomic.LoadUint64(&p.jobCount)
 
-	t.jobsMtx.RLock()
-	defer t.jobsMtx.RUnlock()
-	stats["active-job-count"] = uint64(len(t.jobs))
-	stats["dispatch-chan-size"] = uint64(len(t.dispatchCh))
+	p.jobsMtx.RLock()
+	defer p.jobsMtx.RUnlock()
+	stats["active-job-count"] = uint64(len(p.jobs))
+	stats["dispatch-chan-size"] = uint64(len(p.dispatchCh))
 
 	var callCount, errCount uint64
-	for _, info := range t.jobs {
+	for _, info := range p.jobs {
 		callCount += info.callCount
 		errCount += info.errCount
 	}
