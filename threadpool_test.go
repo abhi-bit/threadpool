@@ -23,21 +23,19 @@ func TestThreadPool(t *testing.T) {
 	tp.Add(j, cbFunc, uint64(200))
 	tp.Add(j, cbFunc, uint64(100))
 
-	tStats, err := tp.Stats()
-	assert.NoError(t, err)
+	tStats := tp.Stats()
 	assert.Equal(t, uint64(1), tStats["total-job-executed"].(uint64))
 	assert.Equal(t, 1, tStats["thread-pool-size"].(int))
 	assert.Equal(t, uint64(0), tStats["err-count"].(uint64))
 	assert.Equal(t, uint64(2), tStats["call-count"].(uint64))
 
-	err = tp.Wait(j)
+	err := tp.Wait(j)
 	if err != nil {
 		assert.NoError(t, err)
 	}
 	assert.Equal(t, uint64(300), atomic.LoadUint64(&callBackFnCount))
 
-	tStats, err = tp.Stats()
-	assert.NoError(t, err)
+	tStats = tp.Stats()
 	assert.Equal(t, uint64(1), tStats["total-job-executed"].(uint64))
 	assert.Equal(t, 1, tStats["thread-pool-size"].(int))
 

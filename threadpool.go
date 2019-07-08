@@ -1,7 +1,6 @@
 package threadpool
 
 import (
-	"encoding/json"
 	"log"
 	"runtime/debug"
 	"sync"
@@ -133,20 +132,13 @@ func (p *Pool) Wait(j *JobInfo) error {
 	return j.err
 }
 
-func (p *Pool) Stats() (map[string]interface{}, error) {
+func (p *Pool) Stats() map[string]interface{} {
 	p.timingStatsMtx.RLock()
 	defer p.timingStatsMtx.RUnlock()
-	info, err := p.timingStats.Calc().MarshalJSON()
-	if err != nil {
-		return nil, err
-	}
+	timingStats := p.timingStats.Calc().JSON()
 
 	stats := make(map[string]interface{})
-
-	err = json.Unmarshal(info, &stats)
-	if err != nil {
-		return nil, err
-	}
+	stats["timing-stats"] = timingStats
 
 	stats["thread-pool-size"] = p.poolSize
 	stats["total-job-executed"] = atomic.LoadUint64(&p.jobCount)
@@ -164,5 +156,5 @@ func (p *Pool) Stats() (map[string]interface{}, error) {
 	stats["call-count"] = callCount
 	stats["err-count"] = errCount
 
-	return stats, nil
+	return stats
 }
