@@ -5,9 +5,6 @@ import (
 	"runtime/debug"
 	"sync"
 	"sync/atomic"
-	"time"
-
-	metrics "github.com/jamiealquiza/tachymeter"
 )
 
 type JobInfo struct {
@@ -35,21 +32,14 @@ type Pool struct {
 
 	dispatchCh chan *CbFuncInfo
 	poolSize   int
-
-	timingStats    *metrics.Tachymeter
-	timingStatsMtx *sync.RWMutex
 }
 
 func New(poolSize int) *Pool {
-	m := metrics.New(&metrics.Config{Size: int(1000)})
-
 	return &Pool{
-		jobs:           make(map[uint64]*JobInfo),
-		jobsMtx:        &sync.RWMutex{},
-		dispatchCh:     make(chan *CbFuncInfo, poolSize),
-		poolSize:       poolSize,
-		timingStats:    m,
-		timingStatsMtx: &sync.RWMutex{},
+		jobs:       make(map[uint64]*JobInfo),
+		jobsMtx:    &sync.RWMutex{},
+		dispatchCh: make(chan *CbFuncInfo, poolSize),
+		poolSize:   poolSize,
 	}
 }
 
@@ -74,12 +64,6 @@ func (p *Pool) execute() {
 				// needed to call callback function in new scope
 				// as the cbFunc can panic as well
 				defer info.job.wg.Done()
-
-				start := time.Now()
-				p.timingStatsMtx.Lock()
-				defer p.timingStatsMtx.Unlock()
-
-				defer p.timingStats.AddTime(time.Since(start))
 
 				err := info.cbFunc(info.fnParams)
 				if err != nil {
@@ -133,12 +117,7 @@ func (p *Pool) Wait(j *JobInfo) error {
 }
 
 func (p *Pool) Stats() map[string]interface{} {
-	p.timingStatsMtx.RLock()
-	defer p.timingStatsMtx.RUnlock()
-	timingStats := p.timingStats.Calc().JSON()
-
 	stats := make(map[string]interface{})
-	stats["timing-stats"] = timingStats
 
 	stats["thread-pool-size"] = p.poolSize
 	stats["total-job-executed"] = atomic.LoadUint64(&p.jobCount)
