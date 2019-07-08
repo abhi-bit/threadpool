@@ -6,3 +6,6 @@
 *.test
 *.out
 .idea/
+.DS_Store
+.testCoverage.txt
+cover.html

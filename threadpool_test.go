@@ -23,20 +23,23 @@ func TestThreadPool(t *testing.T) {
 	tp.Add(j, cbFunc, uint64(200))
 	tp.Add(j, cbFunc, uint64(100))
 
-	err := tp.Wait(j)
+	tStats, err := tp.Stats()
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(1), tStats["total-job-executed"].(uint64))
+	assert.Equal(t, 1, tStats["thread-pool-size"].(int))
+	assert.Equal(t, uint64(0), tStats["err-count"].(uint64))
+	assert.Equal(t, uint64(2), tStats["call-count"].(uint64))
+
+	err = tp.Wait(j)
 	if err != nil {
 		assert.NoError(t, err)
 	}
 	assert.Equal(t, uint64(300), atomic.LoadUint64(&callBackFnCount))
 
-	stats := make(map[string]uint64)
-	stats["active-job-count"] = 0
-	stats["call-count"] = 0
-	stats["dispatch-chan-size"] = 0
-	stats["err-count"] = 0
-	stats["thread-pool-size"] = 1
-	stats["total-job-executed"] = 1
-	assert.Equal(t, stats, tp.Stats())
+	tStats, err = tp.Stats()
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(1), tStats["total-job-executed"].(uint64))
+	assert.Equal(t, 1, tStats["thread-pool-size"].(int))
 
 	var callCounter int
 	// pass callback func with forced panic
@@ -58,7 +61,6 @@ func TestThreadPool(t *testing.T) {
 		assert.NoError(t, err)
 	}
 	assert.Equal(t, uint64(400), atomic.LoadUint64(&callBackFnCount))
-
 }
 
 func TestThreadPoolScenarios(t *testing.T) {
